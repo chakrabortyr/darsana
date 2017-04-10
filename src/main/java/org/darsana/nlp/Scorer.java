@@ -24,6 +24,7 @@ import java.util.HashMap;
  * @author chakrabortyr
  */
 public final class Scorer {
+
    private static enum Type {
       RAW_FREQUENCY(0),
       RELATIVE_FREQUENCY(1),
@@ -39,6 +40,13 @@ public final class Scorer {
       public int getValue() {
          return this.value;
       }
+   }
+
+   private static double scoreTFIDF(int termFreq, int docFreq, int docSize) throws ArithmeticException {
+      double logFrequency = 1 + Math.log(termFreq);
+      double invDocFrequency = Math.log(docSize / docFreq);
+
+      return logFrequency * invDocFrequency;
    }
 
    public static Map<String, Integer> Score(String srcCorp, String dstCorp, int method, int gramSize) {
@@ -69,25 +77,24 @@ public final class Scorer {
 
          }
       }
-      
+
       ArrayList<String> toRemove = new ArrayList<>();
 
       // Remove all grams that only occur once
       conceptMap.keySet().stream().filter((key) -> (conceptMap.get(key) == 1)).forEachOrdered((key) -> {
          toRemove.add(key);
       });
-      
+
       toRemove.forEach((key) -> {
          conceptMap.remove(key);
       });
-      
+
       // if all we care about is raw frequency, we're done
       if (method == Type.RAW_FREQUENCY.getValue()) {
          return conceptMap;
       }
-      
-      //TODO: Implement all scoring methods
 
+      //TODO: Implement all scoring methods
       return conceptMap;
    }
 }
