@@ -13,19 +13,23 @@
    along with Darsana.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package org.darsana.client;
+package org.darsana.nlp;
 
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
+import java.util.Map;
+
+import static org.junit.Assert.*;
+
+import org.junit.Test;
 
 /**
- * Starts up the service
+ * Unit Tests for Scorer
  * @author chakrabortyr
  */
-@SpringBootApplication
-public class Darsana {
-   
-   public static void main(String[] args) {
-      SpringApplication.run(Darsana.class, args);
+public class ScorerTest {
+   @Test 
+   public void ThisShouldBeEmpty() {
+      Map<String, Integer> concepts = Scorer.Score("this sucks", "this really sucks", 0, 2);
+    
+      assertTrue(concepts.isEmpty());
    }
 }

@@ -18,7 +18,7 @@ import java.util.Iterator;
 
 /**
  * N-Gram gen via Iterator
- * @author rudra
+ * @author chakrabortyr
  */
 public class NGram implements Iterator<String> {
    String[] grams;
