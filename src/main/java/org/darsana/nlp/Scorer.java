@@ -14,6 +14,7 @@
  */
 package org.darsana.nlp;
 
+import util.NGram;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.TreeMap;
@@ -103,14 +104,12 @@ public final class Scorer {
       return conceptMap;
    }
 
-   public static Map<String, Double> Score(String srcCorp, String dstCorp, int method, int gramSize) {
+   public static Map<String, Double> ScoreGram(String srcCorp, String dstCorp, int method, int gramSize) {
       // Generate grams from corpora, store in Maps
       Map<String, Double> conceptMap = generateConceptMap(srcCorp, dstCorp, gramSize);
 
-      ArrayList<String> toRemove = new ArrayList<>();
-
       if (method == Type.RAW_FREQUENCY.getValue()) {
-         
+         ArrayList<String> toRemove = new ArrayList<>();
          // Return raw frequency after nixing any terms that occur only once.
          conceptMap.keySet().stream().filter((key) -> (conceptMap.get(key) == 1)).forEachOrdered((key) -> {
             toRemove.add(key);

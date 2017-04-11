@@ -12,7 +12,7 @@
    You should have received a copy of the GNU General Public License
    along with Darsana.  If not, see <http://www.gnu.org/licenses/>.
  */
-package org.darsana.nlp;
+package util;
 
 import java.util.Iterator;
 

@@ -13,7 +13,7 @@
    along with Darsana.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package org.darsana.nlp;
+package util;
 
 import com.google.common.collect.Multimap;
 import com.google.common.collect.LinkedHashMultimap;
