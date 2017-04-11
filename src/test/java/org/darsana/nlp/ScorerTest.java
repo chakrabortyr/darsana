@@ -27,8 +27,8 @@ import org.junit.Test;
  */
 public class ScorerTest {
    @Test 
-   public void ThisShouldBeEmpty() {
-      Map<String, Integer> concepts = Scorer.Score("this sucks", "this really sucks", 0, 2);
+   public void RawFrequencyShouldBeEmpty() {
+      Map<String, Double> concepts = Scorer.Score("this sucks", "this really sucks", 0, 2);
     
       assertTrue(concepts.isEmpty());
    }

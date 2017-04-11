@@ -16,7 +16,9 @@ package org.darsana.nlp;
 
 import java.util.ArrayList;
 import java.util.Map;
-import java.util.HashMap;
+import java.util.TreeMap;
+
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Generates n-grams from an (English) lemmatized corpus; scores grams based on specified parameters
@@ -42,6 +44,28 @@ public final class Scorer {
       }
    }
 
+   private static double harmonicFrequency(String term, Map<String, Double> corpus) {
+      String [] termBits = term.split("\\s+");
+      double harmonic = 0.0;
+      
+      for (String bit : termBits) {
+         harmonic += 1 / corpus.get(bit);
+      }
+      
+      return termBits.length / harmonic;
+   }
+   
+   private static int rawFrequency(String term, Map<String, Double> corpus) {
+      String [] termBits = term.split("\\s+");
+      int raw = 0;
+      
+      for (String bit : termBits) {
+         raw += corpus.get(bit);
+      }
+      
+      return raw / termBits.length;
+   }
+
    private static double scoreTFIDF(int termFreq, int docFreq, int docSize) throws ArithmeticException {
       double logFrequency = 1 + Math.log(termFreq);
       double invDocFrequency = Math.log(docSize / docFreq);
@@ -49,21 +73,20 @@ public final class Scorer {
       return logFrequency * invDocFrequency;
    }
 
-   public static Map<String, Integer> Score(String srcCorp, String dstCorp, int method, int gramSize) {
-      //Generate grams from corpora, store in Maps
-      Map<String, Integer> conceptMap = new HashMap<>();
-
+   private static Map<String, Double> generateConceptMap(String srcCorp, String dstCorp, int gramSize) {
       NGram srcGrams = new NGram(gramSize, srcCorp);
       NGram dstGrams = new NGram(gramSize, dstCorp);
       String gram;
+      
+      Map<String, Double> conceptMap = new TreeMap<>();
 
       while (srcGrams.hasNext()) {
          gram = srcGrams.next();
 
          if (!conceptMap.containsKey(gram)) {
-            conceptMap.put(gram, 1);
+            conceptMap.put(gram, 1.0);
          } else {
-            conceptMap.put(gram, (int) conceptMap.get(gram) + 1);
+            conceptMap.put(gram, (double) conceptMap.get(gram) + 1.0);
          }
       }
 
@@ -71,30 +94,77 @@ public final class Scorer {
          gram = dstGrams.next();
 
          if (!conceptMap.containsKey(gram)) {
-            conceptMap.put(gram, 1);
+            conceptMap.put(gram, 1.0);
          } else {
-            conceptMap.put(gram, (int) conceptMap.get(gram) + 1);
-
+            conceptMap.put(gram, (double) conceptMap.get(gram) + 1.0);
          }
       }
+      
+      return conceptMap;
+   }
+
+   public static Map<String, Double> Score(String srcCorp, String dstCorp, int method, int gramSize) {
+      // Generate grams from corpora, store in Maps
+      Map<String, Double> conceptMap = generateConceptMap(srcCorp, dstCorp, gramSize);
 
       ArrayList<String> toRemove = new ArrayList<>();
 
-      // Remove all grams that only occur once
-      conceptMap.keySet().stream().filter((key) -> (conceptMap.get(key) == 1)).forEachOrdered((key) -> {
-         toRemove.add(key);
-      });
-
-      toRemove.forEach((key) -> {
-         conceptMap.remove(key);
-      });
-
-      // if all we care about is raw frequency, we're done
       if (method == Type.RAW_FREQUENCY.getValue()) {
-         return conceptMap;
-      }
+         
+         // Return raw frequency after nixing any terms that occur only once.
+         conceptMap.keySet().stream().filter((key) -> (conceptMap.get(key) == 1)).forEachOrdered((key) -> {
+            toRemove.add(key);
+         });
 
-      //TODO: Implement all scoring methods
-      return conceptMap;
+         toRemove.forEach((key) -> {
+            conceptMap.remove(key);
+         });
+         
+         return conceptMap;
+      } else if (method == Type.RELATIVE_FREQUENCY.getValue()) {
+         
+         // Return harmonic frequency of terms as they occur across all documents.
+         Map<String, Double> termFrequencyMap = generateConceptMap(srcCorp, dstCorp, 1);
+         Map<String, Double> relativeFrequencyMap = new TreeMap<>();
+         
+         conceptMap.keySet().forEach((key) -> {
+            relativeFrequencyMap.put(key, harmonicFrequency(key, termFrequencyMap));
+         });
+         
+         return relativeFrequencyMap;
+      } else if (method == Type.STRING_DISTANCE.getValue()) {
+         // Return most similar strings across all documents, likely needs trigrams or larger 
+         // to be truly useful.
+         String [] keys = (String[]) conceptMap.keySet().toArray();
+         Map<String, Double> distanceMap = new TreeMap<>();
+         
+         for (int i = 0; i != keys.length; i++) {
+            double score = StringUtils.getJaroWinklerDistance(keys[i], keys[i + 1]);
+            
+            if (score >= 0.9) {
+               distanceMap.put(keys[i] + "," + keys[i +1], score);
+            }
+         }
+         
+         return distanceMap;
+      } else {
+         // Score terms by term frequency over inverse document frequency (tfIdf)
+         // REF: https://en.wikipedia.org/wiki/Tf-idf
+         Map<String, Double> termFrequencyMap = generateConceptMap(srcCorp, dstCorp, 1);
+         Map<String, Double> tfIdfMap = new TreeMap<>();
+         
+         int documentSize = StringUtils.countMatches(srcCorp, "\\s") + 
+                 StringUtils.countMatches(dstCorp, "\\s");
+         
+         conceptMap.keySet().forEach((key) -> {
+            int termFrequency = rawFrequency(key, termFrequencyMap);
+            int docFrequency = conceptMap.get(key).intValue();
+            double tfIdf = scoreTFIDF(termFrequency, docFrequency, documentSize);
+            
+            tfIdfMap.put(key, tfIdf);
+         });
+         
+         return tfIdfMap;
+      }
    }
 }
