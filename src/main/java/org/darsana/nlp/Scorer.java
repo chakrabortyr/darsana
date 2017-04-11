@@ -46,24 +46,24 @@ public final class Scorer {
    }
 
    private static double harmonicFrequency(String term, Map<String, Double> corpus) {
-      String [] termBits = term.split("\\s+");
+      String[] termBits = term.split("\\s+");
       double harmonic = 0.0;
-      
+
       for (String bit : termBits) {
          harmonic += 1 / corpus.get(bit);
       }
-      
+
       return termBits.length / harmonic;
    }
-   
+
    private static int rawFrequency(String term, Map<String, Double> corpus) {
-      String [] termBits = term.split("\\s+");
+      String[] termBits = term.split("\\s+");
       int raw = 0;
-      
+
       for (String bit : termBits) {
          raw += corpus.get(bit);
       }
-      
+
       return raw / termBits.length;
    }
 
@@ -74,16 +74,22 @@ public final class Scorer {
       return logFrequency * invDocFrequency;
    }
 
-   private static Map<String, Double> generateConceptMap(String srcCorp, String dstCorp, int gramSize) {
+   private static Map<String, Double> generateCommonConceptMap(String srcCorp, String dstCorp, int gramSize) {
       NGram srcGrams = new NGram(gramSize, srcCorp);
       NGram dstGrams = new NGram(gramSize, dstCorp);
-      String gram;
       
-      Map<String, Double> conceptMap = new TreeMap<>();
+      Map<String, Double> conceptMap, srcMap, dstMap;
+      conceptMap = new TreeMap<>();
+      srcMap = new TreeMap<>();
+      dstMap = new TreeMap<>();
 
       while (srcGrams.hasNext()) {
-         gram = srcGrams.next();
+         String gram = srcGrams.next();
 
+         if (!srcMap.containsKey(gram)) {
+            srcMap.put(gram, 1.0);
+         }
+         
          if (!conceptMap.containsKey(gram)) {
             conceptMap.put(gram, 1.0);
          } else {
@@ -92,21 +98,36 @@ public final class Scorer {
       }
 
       while (dstGrams.hasNext()) {
-         gram = dstGrams.next();
-
+         String gram = dstGrams.next();
+         
+         if (!dstMap.containsKey(gram)) {
+            dstMap.put(gram, 1.0);
+         }
+         
          if (!conceptMap.containsKey(gram)) {
             conceptMap.put(gram, 1.0);
          } else {
             conceptMap.put(gram, (double) conceptMap.get(gram) + 1.0);
          }
       }
-      
+
+      ArrayList<String> toRemove = new ArrayList();
+
+      // Remove all concepts that occur in one text and not the other
+      conceptMap.keySet().stream().filter((key) -> (!srcMap.containsKey(key) || !dstMap.containsKey(key))).forEachOrdered((key) -> {
+         toRemove.add(key);
+      });
+
+      toRemove.forEach((rem) -> {
+         conceptMap.remove(rem);
+      });
+
       return conceptMap;
    }
 
    public static Map<String, Double> ScoreGram(String srcCorp, String dstCorp, int method, int gramSize) {
       // Generate grams from corpora, store in Maps
-      Map<String, Double> conceptMap = generateConceptMap(srcCorp, dstCorp, gramSize);
+      Map<String, Double> conceptMap = generateCommonConceptMap(srcCorp, dstCorp, gramSize);
 
       if (method == Type.RAW_FREQUENCY.getValue()) {
          ArrayList<String> toRemove = new ArrayList<>();
@@ -118,51 +139,55 @@ public final class Scorer {
          toRemove.forEach((key) -> {
             conceptMap.remove(key);
          });
-         
+
          return conceptMap;
       } else if (method == Type.RELATIVE_FREQUENCY.getValue()) {
-         
+
          // Return harmonic frequency of terms as they occur across all documents.
-         Map<String, Double> termFrequencyMap = generateConceptMap(srcCorp, dstCorp, 1);
+         Map<String, Double> termFrequencyMap = generateCommonConceptMap(srcCorp, dstCorp, 1);
          Map<String, Double> relativeFrequencyMap = new TreeMap<>();
-         
+
          conceptMap.keySet().forEach((key) -> {
-            relativeFrequencyMap.put(key, harmonicFrequency(key, termFrequencyMap));
+            double freq = harmonicFrequency(key, termFrequencyMap);
+
+            if (freq > 1.0) {
+               relativeFrequencyMap.put(key, freq);
+            }
          });
-         
+
          return relativeFrequencyMap;
       } else if (method == Type.STRING_DISTANCE.getValue()) {
          // Return most similar strings across all documents, likely needs trigrams or larger 
          // to be truly useful.
-         String [] keys = (String[]) conceptMap.keySet().toArray();
+         Object[] keys = conceptMap.keySet().toArray();
          Map<String, Double> distanceMap = new TreeMap<>();
-         
-         for (int i = 0; i != keys.length; i++) {
-            double score = StringUtils.getJaroWinklerDistance(keys[i], keys[i + 1]);
-            
+
+         for (int i = 0; i < keys.length - 1; i++) {
+            double score = StringUtils.getJaroWinklerDistance(keys[i].toString(), keys[i + 1].toString());
+
             if (score >= 0.9) {
-               distanceMap.put(keys[i] + "," + keys[i +1], score);
+               distanceMap.put(keys[i].toString() + "," + keys[i + 1].toString(), score);
             }
          }
-         
+
          return distanceMap;
       } else {
          // Score terms by term frequency over inverse document frequency (tfIdf)
          // REF: https://en.wikipedia.org/wiki/Tf-idf
-         Map<String, Double> termFrequencyMap = generateConceptMap(srcCorp, dstCorp, 1);
+         Map<String, Double> termFrequencyMap = generateCommonConceptMap(srcCorp, dstCorp, 1);
          Map<String, Double> tfIdfMap = new TreeMap<>();
-         
-         int documentSize = StringUtils.countMatches(srcCorp, "\\s") + 
-                 StringUtils.countMatches(dstCorp, "\\s");
-         
+
+         int documentSize = StringUtils.countMatches(srcCorp, "\\s")
+                 + StringUtils.countMatches(dstCorp, "\\s");
+
          conceptMap.keySet().forEach((key) -> {
             int termFrequency = rawFrequency(key, termFrequencyMap);
             int docFrequency = conceptMap.get(key).intValue();
             double tfIdf = scoreTFIDF(termFrequency, docFrequency, documentSize);
-            
+
             tfIdfMap.put(key, tfIdf);
          });
-         
+
          return tfIdfMap;
       }
    }
