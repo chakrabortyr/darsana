@@ -14,7 +14,7 @@
  */
 package org.darsana.nlp;
 
-import util.NGram;
+import org.darsana.util.NGram;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.TreeMap;
